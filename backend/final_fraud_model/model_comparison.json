@@ -1,0 +1,66 @@
+{
+    "LogisticRegression": {
+        "validation": {
+            "accuracy": 0.9093,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1_score": 0.0,
+            "roc_auc": 0.757
+        },
+        "test": {
+            "accuracy": 0.9107,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1_score": 0.0,
+            "roc_auc": 0.8351
+        }
+    },
+    "RandomForest": {
+        "validation": {
+            "accuracy": 0.9093,
+            "precision": 0.2,
+            "recall": 0.0154,
+            "f1_score": 0.0286,
+            "roc_auc": 0.717
+        },
+        "test": {
+            "accuracy": 0.9147,
+            "precision": 0.5714,
+            "recall": 0.0615,
+            "f1_score": 0.1111,
+            "roc_auc": 0.8063
+        }
+    },
+    "XGBoost": {
+        "validation": {
+            "accuracy": 0.8973,
+            "precision": 0.2273,
+            "recall": 0.0769,
+            "f1_score": 0.1149,
+            "roc_auc": 0.6474
+        },
+        "test": {
+            "accuracy": 0.9,
+            "precision": 0.2917,
+            "recall": 0.1077,
+            "f1_score": 0.1573,
+            "roc_auc": 0.7421
+        }
+    },
+    "LightGBM": {
+        "validation": {
+            "accuracy": 0.9067,
+            "precision": 0.2727,
+            "recall": 0.0462,
+            "f1_score": 0.0789,
+            "roc_auc": 0.7053
+        },
+        "test": {
+            "accuracy": 0.9133,
+            "precision": 0.5,
+            "recall": 0.1077,
+            "f1_score": 0.1772,
+            "roc_auc": 0.7787
+        }
+    }
+}
