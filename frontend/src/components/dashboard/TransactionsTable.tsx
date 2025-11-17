@@ -11,7 +11,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { Transaction } from "@/data/mockTransactions";
+
+interface Transaction {
+  id: string;
+  date: string;
+  amount: number;
+  type: string;
+  channel: string;
+  location: string;
+  fraudProbability: number;
+  isFraud: boolean;
+}
 
 interface TransactionsTableProps {
   transactions: Transaction[];

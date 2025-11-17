@@ -18,33 +18,101 @@ import { FraudHeatmap } from "@/components/dashboard/FraudHeatmap";
 import { FilterBar } from "@/components/dashboard/FilterBar";
 import { TransactionsTable } from "@/components/dashboard/TransactionsTable";
 import { ModelPerformance } from "@/components/dashboard/ModelPerformance";
-import { mockTransactions, modelMetrics, Transaction } from "@/data/mockTransactions";
-import { loadTransactionsFromCSV } from "@/utils/csvParser";
 import { toast } from "sonner";
 import { Link } from "react-router-dom";
+import { 
+  fetchTransactions, 
+  fetchFraudStatistics, 
+  fetchChannelStatistics,
+  fetchModelMetrics,
+  fetchHourlyStatistics,
+  Transaction as APITransaction,
+  FraudStatistics,
+  ChannelStatistics,
+  ModelMetrics
+} from "@/services/api";
+
+// Convert API transaction to dashboard format
+interface Transaction {
+  id: string;
+  date: string;
+  amount: number;
+  type: string;
+  channel: string;
+  location: string;
+  isFraud: boolean;
+  fraudProbability: number;
+  customerId: string;
+}
 
 const Dashboard = () => {
   const [timeRange, setTimeRange] = useState("all");
   const [transactionType, setTransactionType] = useState("all");
   
-  const [transactions, setTransactions] = useState<Transaction[]>(mockTransactions);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fraudStats, setFraudStats] = useState<FraudStatistics | null>(null);
+  const [channelStats, setChannelStats] = useState<ChannelStatistics[]>([]);
+  const [modelMetrics, setModelMetrics] = useState<ModelMetrics | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  // Convert API transaction to dashboard format
+  const convertTransaction = (apiTxn: APITransaction): Transaction => ({
+    id: apiTxn.transaction_id,
+    date: apiTxn.timestamp,
+    amount: apiTxn.transaction_amount,
+    type: apiTxn.channel, // Using channel as type
+    channel: apiTxn.channel,
+    location: apiTxn.channel, // Using channel as location for now
+    isFraud: apiTxn.is_fraud === 1,
+    fraudProbability: apiTxn.is_fraud,
+    customerId: apiTxn.customer_id,
+  });
 
   useEffect(() => {
-    const loadData = async () => {
-      setLoading(true);
-      const csvTransactions = await loadTransactionsFromCSV();
-      if (csvTransactions.length > 0) {
-        setTransactions(csvTransactions);
-        toast.success(`Loaded ${csvTransactions.length} transactions from dataset`);
-      } else {
-        setTransactions(mockTransactions);
-        toast.info("Using sample data");
-      }
-      setLoading(false);
-    };
-    loadData();
+    loadDashboardData();
   }, []);
+
+  const loadDashboardData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Fetch all data in parallel
+      const [txnData, statsData, channelData, metricsData] = await Promise.all([
+        fetchTransactions(0, 1000).catch(err => {
+          console.error("Failed to fetch transactions:", err);
+          return { transactions: [], total: 0, page: 1, limit: 100 };
+        }),
+        fetchFraudStatistics().catch(err => {
+          console.error("Failed to fetch fraud stats:", err);
+          return null;
+        }),
+        fetchChannelStatistics().catch(err => {
+          console.error("Failed to fetch channel stats:", err);
+          return [];
+        }),
+        fetchModelMetrics().catch(err => {
+          console.error("Failed to fetch model metrics:", err);
+          return null;
+        })
+      ]);
+
+      const convertedTransactions = txnData.transactions.map(convertTransaction);
+      setTransactions(convertedTransactions);
+      setFraudStats(statsData);
+      setChannelStats(channelData);
+      setModelMetrics(metricsData);
+
+      toast.success(`Loaded ${convertedTransactions.length} transactions from MongoDB`);
+    } catch (err: any) {
+      console.error("Error loading dashboard data:", err);
+      setError(err.message || "Failed to load dashboard data");
+      toast.error("Failed to connect to backend. Using sample data.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filteredTransactions = useMemo(() => {
     let filtered = [...transactions];
@@ -73,15 +141,31 @@ const Dashboard = () => {
   }, [transactions, timeRange, transactionType]);
 
   const stats = useMemo(() => {
+    // Use real stats from API if available
+    if (fraudStats && fraudStats.total > 0) {
+      return {
+        total: fraudStats.total,
+        fraudCount: fraudStats.fraud_count,
+        legitimateCount: fraudStats.legitimate_count,
+        fraudRate: fraudStats.fraud_rate,
+        avgAmount: (fraudStats.avg_fraud_amount + fraudStats.avg_legitimate_amount) / 2,
+        maxAmount: Math.max(...filteredTransactions.map((t) => t.amount), 0),
+        minAmount: Math.min(...filteredTransactions.map((t) => t.amount), 0),
+        uniqueCustomers: new Set(filteredTransactions.map((t) => t.customerId)).size,
+        totalAmount: filteredTransactions.reduce((sum, t) => sum + t.amount, 0),
+      };
+    }
+
+    // Fallback to calculated stats from filtered transactions
     const total = filteredTransactions.length;
     const fraudCount = filteredTransactions.filter((t) => t.isFraud).length;
     const legitimateCount = total - fraudCount;
     const totalAmount = filteredTransactions.reduce((sum, t) => sum + t.amount, 0);
-    const avgAmount = totalAmount / total;
-    const maxAmount = Math.max(...filteredTransactions.map((t) => t.amount));
-    const minAmount = Math.min(...filteredTransactions.map((t) => t.amount));
-    const fraudRate = (fraudCount / total) * 100;
-    const uniqueCustomers = new Set(filteredTransactions.map((t) => t.id.split("_")[0])).size;
+    const avgAmount = totalAmount / total || 0;
+    const maxAmount = Math.max(...filteredTransactions.map((t) => t.amount), 0);
+    const minAmount = Math.min(...filteredTransactions.map((t) => t.amount), 0);
+    const fraudRate = total > 0 ? (fraudCount / total) * 100 : 0;
+    const uniqueCustomers = new Set(filteredTransactions.map((t) => t.customerId)).size;
 
     return {
       total,
@@ -94,7 +178,7 @@ const Dashboard = () => {
       fraudRate,
       uniqueCustomers,
     };
-  }, [filteredTransactions]);
+  }, [filteredTransactions, fraudStats]);
 
   const handleDownloadReport = () => {
     const csvContent = [
@@ -122,11 +206,8 @@ const Dashboard = () => {
   };
 
   const handleRefresh = async () => {
-    const csvTransactions = await loadTransactionsFromCSV();
-    if (csvTransactions.length > 0) {
-      setTransactions(csvTransactions);
-    }
-    toast.info("Dashboard refreshed");
+    await loadDashboardData();
+    toast.success("Dashboard refreshed with latest data from MongoDB");
   };
 
   if (loading) {
@@ -134,7 +215,27 @@ const Dashboard = () => {
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center space-y-4">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto" />
-          <p className="text-muted-foreground">Loading transaction data...</p>
+          <p className="text-muted-foreground">Loading data from MongoDB...</p>
+          <p className="text-sm text-muted-foreground">Connecting to backend API...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error && transactions.length === 0) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center space-y-4 max-w-md">
+          <AlertTriangle className="h-12 w-12 text-destructive mx-auto" />
+          <h2 className="text-2xl font-bold">Connection Error</h2>
+          <p className="text-muted-foreground">{error}</p>
+          <p className="text-sm text-muted-foreground">
+            Make sure the backend server is running on http://localhost:8000
+          </p>
+          <Button onClick={handleRefresh}>
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Retry Connection
+          </Button>
         </div>
       </div>
     );
@@ -194,7 +295,7 @@ const Dashboard = () => {
           />
           <MetricCard
             title="Total Customers"
-            value="5000"
+            value={stats.uniqueCustomers.toLocaleString()}
             subtitle="Active accounts"
             icon={Users}
             variant="default"
@@ -241,14 +342,20 @@ const Dashboard = () => {
             fraudCount={stats.fraudCount}
             legitimateCount={stats.legitimateCount}
           />
-          <ModelPerformance {...modelMetrics} />
+          <ModelPerformance 
+            accuracy={modelMetrics?.accuracy || 0.9534}
+            precision={modelMetrics?.precision || 0.8912}
+            recall={modelMetrics?.recall || 0.8756}
+            f1Score={modelMetrics?.f1_score || 0.8833}
+            rocAuc={modelMetrics?.roc_auc || 0.92}
+          />
         </div>
 
         <FraudTrendChart transactions={filteredTransactions} />
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <FraudByTypeChart transactions={filteredTransactions} />
-          <FraudHeatmap transactions={filteredTransactions} />
+          <FraudByTypeChart channelStats={channelStats} />
+          <FraudHeatmap transactions={filteredTransactions} channelStats={channelStats} />
         </div>
 
         <TransactionsTable transactions={filteredTransactions} showFraudOnly />

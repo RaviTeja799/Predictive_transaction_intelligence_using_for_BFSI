@@ -82,13 +82,15 @@ const Landing = () => {
             
             <div className="flex flex-col sm:flex-row gap-4 pt-4">
               <Button size="lg" asChild className="text-lg h-12 px-8">
-                <Link to="/dashboard">
-                  View Dashboard
+                <Link to="/login">
+                  Access Console
                   <ArrowRight className="ml-2 h-5 w-5" />
                 </Link>
               </Button>
-              <Button size="lg" variant="outline" className="text-lg h-12 px-8">
-                Learn More
+              <Button size="lg" variant="outline" asChild className="text-lg h-12 px-8">
+                <Link to="/predict">
+                  Test Fraud Detection
+                </Link>
               </Button>
             </div>
           </div>
@@ -202,16 +204,26 @@ const Landing = () => {
                 Start analyzing your transaction data with our powerful fraud detection
                 platform today.
               </p>
-              <div className="pt-4">
+              <div className="pt-4 flex gap-4 justify-center">
                 <Button
                   size="lg"
                   variant="secondary"
                   asChild
                   className="text-lg h-12 px-8"
                 >
-                  <Link to="/dashboard">
+                  <Link to="/login">
                     View Live Dashboard
                     <ArrowRight className="ml-2 h-5 w-5" />
+                  </Link>
+                </Button>
+                <Button
+                  size="lg"
+                  variant="outline"
+                  asChild
+                  className="text-lg h-12 px-8 bg-white/10 hover:bg-white/20"
+                >
+                  <Link to="/predict">
+                    Try Prediction
                   </Link>
                 </Button>
               </div>
@@ -237,10 +249,10 @@ const Landing = () => {
             <div>
               <h3 className="font-semibold mb-4">Product</h3>
               <ul className="space-y-2 text-sm text-muted-foreground">
-                <li><Link to="/dashboard" className="hover:text-primary transition-colors">Dashboard</Link></li>
+                <li><Link to="/login" className="hover:text-primary transition-colors">Dashboard</Link></li>
+                <li><Link to="/predict" className="hover:text-primary transition-colors">Fraud Prediction</Link></li>
                 <li><a href="#features" className="hover:text-primary transition-colors">Features</a></li>
-                <li><a href="#" className="hover:text-primary transition-colors">Documentation</a></li>
-                <li><a href="#" className="hover:text-primary transition-colors">API</a></li>
+                <li><a href="http://localhost:8000/docs" target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors">API Docs</a></li>
               </ul>
             </div>
             

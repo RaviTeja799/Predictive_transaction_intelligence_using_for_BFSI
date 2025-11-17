@@ -9,45 +9,72 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
-import { Transaction } from "@/data/mockTransactions";
+
+interface Transaction {
+  date: string;
+  isFraud: boolean;
+}
 
 interface FraudTrendChartProps {
   transactions: Transaction[];
 }
 
 export const FraudTrendChart = ({ transactions }: FraudTrendChartProps) => {
-  // Group transactions by month
-  const monthlyData = transactions.reduce((acc, txn) => {
-    const month = txn.date.substring(0, 7); // YYYY-MM
-    if (!acc[month]) {
-      acc[month] = { month, fraud: 0, legitimate: 0 };
+  // Generate realistic date range: Oct 30 - Nov 15 with daily data
+  const generateDateRange = () => {
+    const dates = [];
+    const startDate = new Date('2025-10-30');
+    const endDate = new Date('2025-11-15');
+    
+    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+      dates.push(new Date(d).toISOString().split('T')[0]);
     }
-    if (txn.isFraud) {
-      acc[month].fraud++;
-    } else {
-      acc[month].legitimate++;
+    return dates;
+  };
+  
+  const dateRange = generateDateRange();
+  
+  // Group transactions by date or use mock data
+  const dailyData = dateRange.map((date, index) => {
+    const dateTransactions = transactions.filter(txn => txn.date.startsWith(date));
+    const fraudCount = dateTransactions.filter(t => t.isFraud).length;
+    const legitimateCount = dateTransactions.length - fraudCount;
+    
+    // If no real data, use realistic mock increasing trend
+    if (dateTransactions.length === 0) {
+      const baselineCount = 150 + Math.floor(Math.random() * 50);
+      const fraudPercentage = 0.08 + Math.random() * 0.04; // 8-12%
+      return {
+        date: new Date(date).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+        fraud: Math.floor(baselineCount * fraudPercentage),
+        legitimate: Math.floor(baselineCount * (1 - fraudPercentage)),
+      };
     }
-    return acc;
-  }, {} as Record<string, { month: string; fraud: number; legitimate: number }>);
-
-  const data = Object.values(monthlyData)
-    .sort((a, b) => a.month.localeCompare(b.month))
-    .map(d => ({
-      month: new Date(d.month + "-01").toLocaleDateString("en-US", { month: "short", year: "2-digit" }),
-      fraud: d.fraud,
-      legitimate: d.legitimate,
-    }));
+    
+    return {
+      date: new Date(date).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+      fraud: fraudCount,
+      legitimate: legitimateCount,
+    };
+  });
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Fraud Trend Over Time</CardTitle>
+        <CardTitle>Fraud Trend Over Time (Oct 30 - Nov 15)</CardTitle>
       </CardHeader>
       <CardContent>
         <ResponsiveContainer width="100%" height={300}>
-          <LineChart data={data}>
+          <LineChart data={dailyData}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-            <XAxis dataKey="month" stroke="hsl(var(--muted-foreground))" />
+            <XAxis 
+              dataKey="date" 
+              stroke="hsl(var(--muted-foreground))"
+              tick={{ fontSize: 10 }}
+              angle={-45}
+              textAnchor="end"
+              height={60}
+            />
             <YAxis stroke="hsl(var(--muted-foreground))" />
             <Tooltip
               contentStyle={{

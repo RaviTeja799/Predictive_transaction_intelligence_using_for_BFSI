@@ -18,14 +18,16 @@
 
 ## 📖 Overview
 
-**TransIntelliFlow** is an enterprise-grade fraud detection system that combines Machine Learning and predictive analytics to identify fraudulent transactions in real-time for the Banking, Financial Services, and Insurance (BFSI) sector.
+**TransIntelliFlow** is an enterprise-grade fraud detection system that combines Machine Learning, AI-assisted explainability, and realistic simulations to identify fraudulent transactions in real-time for the Banking, Financial Services, and Insurance (BFSI) sector.
 
 ### 🎯 Key Capabilities
-- **Real-time Fraud Detection** - Instant analysis of transactions
-- **ML-Powered Predictions** - XGBoost & Random Forest models
-- **Risk Scoring Engine** - Multi-factor risk assessment
-- **Interactive Dashboard** - React-based monitoring interface
-- **RESTful API** - Easy integration with existing systems
+- **Real-time Fraud Detection** - Instant analysis of transactions via FastAPI
+- **ML-Powered Predictions** - XGBoost & Random Forest models with cached mock fallback
+- **Simulation Lab & Overlay** - Run 100+ what-if transactions and overlay the latest 500 results on the dashboard without breaking baselines
+- **AI Explainability** - Gemini-powered narratives that summarize feature importance and per-transaction risk factors
+- **Risk Scoring Engine** - Multi-factor risk assessment with heuristic boosters for demo realism
+- **Interactive Dashboard** - React-based monitoring interface tuned for enterprise presentations
+- **RESTful API** - Easily integrate with existing systems or experimentation notebooks
 
 ---
 
@@ -84,6 +86,25 @@
 - 🎯 **Risk Indicators** - Visual risk level display
 - 📱 **Responsive Design** - Works on all devices
 - ⚠️ **Alert System** - Real-time fraud notifications
+- 🧪 **Simulation Lab Overlay** - Blend the last 500 simulation transactions into the dashboard without disturbing the curated baseline dataset
+- 🤝 **Modeling Workspace AI** - Gemini explains model metrics and per-transaction predictions directly inside the app
+
+---
+
+## 🔁 Demo Workflows
+
+### Simulation Lab + Dashboard Overlay
+1. Open the **Simulation Lab** screen in the frontend and submit a batch (default 100 transactions).
+2. FastAPI processes every transaction with the real model, applies realistic heuristics (9–15% fraud), and stores the last 500 results in an in-memory overlay buffer.
+3. The dashboard can optionally overlay this buffer to showcase live spikes while the baseline 200 curated transactions stay unchanged.
+4. Backend endpoints involved:
+  - `POST /api/simulation/batch`
+  - `GET /api/simulation/overlay`
+
+### Gemini-Powered Explainability
+1. Ensure `GEMINI_API_KEY` is present in the backend `.env` (see [Environment variables](#backend-setup)).
+2. The Modeling Workspace calls `GET /api/modeling/explain` for global summaries and `POST /api/modeling/predict/explain` for transaction-level narratives.
+3. Responses always include fallback text so the UI never breaks if the external API is unavailable.
 
 ---
 
@@ -119,6 +140,17 @@ pip install -r requirements.txt
 # Run API server
 uvicorn src.api.main:app --reload
 ```
+
+#### Environment variables
+Create a `.env` file inside `backend/` (or export the values in your shell) before starting uvicorn:
+
+```env
+USE_MOCK_DATA=true                  # serves cached Indian mock data when MongoDB is empty
+GEMINI_API_KEY=your-google-key      # enables AI explanations in Modeling Workspace
+GEMINI_MODEL=gemini-1.5-flash       # optional override; defaults to gemini-1.5-flash
+```
+
+> Tip: leave `USE_MOCK_DATA=true` for demos so the React dashboard always receives consistent Indian locations/channels. Toggle it off when connecting to a real MongoDB instance.
 
 **Backend will run on:** `http://localhost:8000`  
 **API Documentation:** `http://localhost:8000/docs`
