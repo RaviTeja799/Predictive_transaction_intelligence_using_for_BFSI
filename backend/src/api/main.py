@@ -4,6 +4,7 @@ from pydantic import BaseModel
 import pickle
 import pandas as pd
 import numpy as np
+import joblib
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 from datetime import datetime
@@ -37,18 +38,35 @@ app.include_router(modeling.router)
 app.include_router(monitoring.router)
 app.include_router(simulation.router)
 
-# Load model,scaler,features
-MODEL_DIR = Path("final_fraud_model")
-model_path = MODEL_DIR / "best_model.pkl"
-scaler_path = MODEL_DIR / "scaler.pkl"
-features_path = MODEL_DIR / "features.pkl"
+# ==================== MODEL LOADING (Updated to match app.py) ====================
 
-with open(model_path, "rb") as f:
-    model = pickle.load(f)
-with open(scaler_path, "rb") as f:
-    scaler = pickle.load(f)
-with open(features_path, "rb") as f:
-    features = pickle.load(f)
+class RenameUnpickler(pickle.Unpickler):
+    def find_class(self, module, name):
+        if module == "preprocessor":
+            module = "preprocessing"
+        return super().find_class(module, name)
+
+def load_pickle_with_rename(path):
+    with open(path, "rb") as f:
+        return RenameUnpickler(f).load()
+
+# Updated model paths to match app.py
+MODEL_PATH = "outputs/all_models/random_forest_model.pkl"
+PREPROCESSOR_PATH = "src/preprocessing/preprocessor.pkl"
+
+print("🔄 Loading model & preprocessor...")
+
+model = joblib.load(MODEL_PATH)
+preprocessor = load_pickle_with_rename(PREPROCESSOR_PATH)
+
+print("✅ Model Loaded:", type(model))
+print("✅ Preprocessor Loaded:", type(preprocessor))
+print("Model expects:", model.feature_names_in_)
+
+MODEL_FEATURE_ORDER = list(model.feature_names_in_)
+N_FEATURES = len(MODEL_FEATURE_ORDER)
+
+# ==================== HELPER FUNCTIONS ====================
 
 def _determine_risk_level(probability: float) -> str:
     if probability > 0.7:
@@ -75,8 +93,8 @@ def _channel_feature_flags(channel: str) -> Dict[str, int]:
     if key:
         flags[key] = 1
     else:
-        # default to web to avoid all zeros which might break scaler expectations
         flags["channel_web"] = 1
+    
     renamed = {
         "channel_Atm": flags["channel_atm"],
         "channel_Mobile": flags["channel_mobile"],
@@ -115,31 +133,25 @@ def _build_engineered_features_basic(
     return engineered
 
 def _run_model_prediction(engineered_features: Dict[str, Any]) -> Dict[str, Any]:
-    vector = {f: engineered_features.get(f, 0) for f in features}
+    """Run ML model prediction using preprocessor (matches app.py approach)"""
+    # Build feature vector matching model expectations
+    vector = {f: engineered_features.get(f, 0) for f in MODEL_FEATURE_ORDER}
     df = pd.DataFrame([vector])
-    X_scaled = scaler.transform(df)
-    pred = int(model.predict(X_scaled)[0])
-    prob = float(model.predict_proba(X_scaled)[0][1])
+    
+    # Get predictions
+    pred = int(model.predict(df)[0])
+    probas = model.predict_proba(df)[0]
+    prob = float(probas[1])  # Probability of fraud
+    
     risk_level = _determine_risk_level(prob)
     confidence = round(abs(prob - 0.5) * 200, 2)
+    
     return {
         "prediction": pred,
         "fraud_probability": prob,
         "risk_level": risk_level,
         "confidence": confidence,
     }
-
-def _apply_demo_boost(prediction: Dict[str, Any], risk_factors: List[str]) -> Dict[str, Any]:
-    """Boost prediction to fraud when multiple risk factors make sense for demos."""
-    if len(risk_factors) >= 2:
-        prediction["prediction"] = 1
-        prediction["fraud_probability"] = min(
-            0.99,
-            prediction["fraud_probability"] + 0.15 * len(risk_factors),
-        )
-        prediction["risk_level"] = "High"
-    prediction["confidence"] = round(prediction["fraud_probability"] * 100, 2)
-    return prediction
 
 def _derive_risk_factors(
     transaction_amount: float,
@@ -157,23 +169,117 @@ def _derive_risk_factors(
         factors.append("Unusual transaction time")
     if kyc_verified.strip().lower() == "no":
         factors.append("KYC not verified")
-    if channel.upper() == "ATM" and transaction_amount > 20000:
+    if channel.lower() in ["atm", "pos"] and transaction_amount > 20000:
         factors.append("High-value ATM transaction")
     return factors
+
+def _generate_fraud_reason(
+    prediction: int,
+    risk_factors: List[str],
+    fraud_probability: float,
+    transaction_amount: float
+) -> str:
+    """
+    Generate human-readable reason for fraud detection decision.
+    Combines ML model output with rule-based flags.
+    """
+    if prediction == 1:  # Fraud detected
+        if len(risk_factors) >= 2:
+            return f"Multiple risk indicators detected: {', '.join(risk_factors)}"
+        elif len(risk_factors) == 1:
+            return f"Risk factor identified: {risk_factors[0]}"
+        elif fraud_probability >= 0.7:
+            return f"High ML fraud risk score ({round(fraud_probability, 2)})"
+        else:
+            return f"Moderate fraud risk detected (score: {round(fraud_probability, 2)})"
+    else:  # Legitimate
+        return f"Low fraud risk. Normal transaction pattern for amount ${transaction_amount:,.0f}"
+
+def _apply_rule_based_detection(
+    transaction_amount: float,
+    account_age_days: int,
+    hour: int,
+    kyc_verified: str,
+    channel: str,
+    ml_prediction: int,
+    ml_probability: float
+) -> tuple[int, List[str], str]:
+    """
+    Apply rule-based fraud detection logic - Matches app.py business rules.
+    Returns: (final_prediction, rule_flags, reason)
+    
+    BUSINESS RULES:
+    1. High-value new account transactions
+    2. Unverified KYC with significant amounts
+    3. Unusual hour transactions
+    4. Very high amounts
+    5. New accounts without KYC
+    6. High ATM/POS withdrawals
+    """
+    rule_flags = []
+    
+    # RULE 1: High-value transaction from new account
+    if transaction_amount > 10000 and account_age_days < 30:
+        rule_flags.append("HIGH_VALUE_NEW_ACCOUNT")
+    
+    # RULE 2: KYC not verified with significant amount
+    if kyc_verified.strip().lower() == "no" and transaction_amount > 5000:
+        rule_flags.append("UNVERIFIED_KYC_HIGH_AMOUNT")
+    
+    # RULE 3: Unusual hour transactions (late night/early morning)
+    if hour >= 2 and hour <= 5 and transaction_amount > 3000:
+        rule_flags.append("UNUSUAL_HOUR")
+    
+    # RULE 4: Very high amount (automatic flag)
+    if transaction_amount > 50000:
+        rule_flags.append("VERY_HIGH_AMOUNT")
+    
+    # RULE 5: New account + unverified KYC
+    if account_age_days < 7 and kyc_verified.strip().lower() == "no":
+        rule_flags.append("NEW_ACCOUNT_UNVERIFIED")
+    
+    # RULE 6: ATM withdrawals above threshold
+    if channel.lower() in ["atm", "pos"] and transaction_amount > 20000:
+        rule_flags.append("HIGH_ATM_WITHDRAWAL")
+    
+    # Combine ML + Rules for final decision
+    rule_triggered = len(rule_flags) > 0
+    
+    if rule_triggered and ml_probability > 0.3:
+        final_prediction = 1
+    elif ml_probability >= 0.7:
+        final_prediction = 1
+    elif rule_triggered and ml_probability > 0.2:
+        final_prediction = 1
+    else:
+        final_prediction = ml_prediction
+    
+    # Derive risk factors for reason generation
+    risk_factors = _derive_risk_factors(
+        transaction_amount, account_age_days, hour, kyc_verified, channel
+    )
+    
+    # Generate reason
+    reason = _generate_fraud_reason(
+        final_prediction, risk_factors, ml_probability, transaction_amount
+    )
+    
+    return final_prediction, rule_flags, reason
 
 async def _store_prediction_record(transaction_id: str, prediction: Dict[str, Any]):
     try:
         payload = {
             "transaction_id": transaction_id,
-            "prediction": "Fraud" if prediction["prediction"] == 1 else "Legitimate",
-            "fraud_probability": prediction["fraud_probability"],
-            "risk_level": prediction["risk_level"],
+            "prediction": prediction.get("prediction", "Legitimate"),
+            "fraud_probability": prediction.get("fraud_probability", 0.0),
+            "risk_level": prediction.get("risk_level", "Low"),
+            "reason": prediction.get("reason", ""),
+            "rule_flags": prediction.get("rule_flags", []),
             "model_version": os.getenv("MODEL_VERSION", "1.0.0"),
             "predicted_at": datetime.utcnow(),
         }
         await db_ops.create_prediction(payload)
     except Exception as exc:
-        # Silently ignore duplicate key errors (E11000)
         if "E11000" not in str(exc):
             print(f"Could not store prediction: {exc}")
 
@@ -185,7 +291,9 @@ def _prepare_enhanced_features(transaction: "EnhancedPredictionInput") -> Dict[s
         channel=transaction.channel,
         kyc_verified=transaction.kyc_verified,
     )
-#Input schema
+
+# ==================== PYDANTIC MODELS ====================
+
 class TransactionInput(BaseModel):
     step: int
     type: int
@@ -206,6 +314,14 @@ class TransactionInput(BaseModel):
     kyc_verified_No: int = 0
     kyc_verified_Yes: int = 0
 
+class EnhancedPredictionInput(BaseModel):
+    customer_id: str
+    account_age_days: int
+    transaction_amount: float
+    channel: str  # Mobile, Web, ATM, POS
+    kyc_verified: str  # Yes, No
+    hour: int  # 0-23
+
 def _prepare_legacy_features(transaction: TransactionInput) -> Dict[str, Any]:
     input_dict = transaction.dict()
     engineered = {
@@ -225,35 +341,50 @@ def _prepare_legacy_features(transaction: TransactionInput) -> Dict[str, Any]:
     }
     return engineered
 
+# ==================== LIFECYCLE EVENTS ====================
+
 @app.on_event("startup")
 async def startup_event():
     """Initialize database connection on startup"""
     try:
         await get_database()
+        print("✅ Database connected successfully")
     except Exception as e:
-        print(f"Warning: Could not connect to database: {e}")
+        print(f"⚠️ Warning: Could not connect to database: {e}")
 
 @app.on_event("shutdown")
 async def shutdown_event():
     """Close database connection on shutdown"""
     await close_database()
 
+# ==================== API ENDPOINTS ====================
+
 @app.get("/")
 def root():
     return {
         "message": "🚀 Fraud Detection API - TransIntelliFlow is running successfully!",
         "version": "1.0.0",
+        "milestone": "Milestone 3 - Complete",
+        "features": [
+            "ML Model (Random Forest)",
+            "Rule-Based Detection (6 business rules)",
+            "Risk Scoring",
+            "Reason Generation",
+            "MongoDB Storage"
+        ],
         "endpoints": {
-            "predict": "/predict",
+            "predict_enhanced": "/api/predict/enhanced",
+            "predict_batch": "/api/predict/batch",
+            "get_result": "/api/result/{transaction_id}",
             "transactions": "/api/transactions",
             "statistics": "/api/statistics/fraud",
-            "channels": "/api/statistics/channels",
             "metrics": "/api/metrics"
         }
     }
 
 @app.post("/predict")
 async def predict_fraud(transaction: TransactionInput):
+    """Legacy prediction endpoint"""
     engineered = _prepare_legacy_features(transaction)
     prediction = _run_model_prediction(engineered)
     await _store_prediction_record(
@@ -267,21 +398,63 @@ async def predict_fraud(transaction: TransactionInput):
         "risk_level": prediction["risk_level"],
     }
 
-# Enhanced prediction endpoint for frontend
-class EnhancedPredictionInput(BaseModel):
-    customer_id: str
-    account_age_days: int
-    transaction_amount: float
-    channel: str  # Mobile, Web, ATM, POS
-    kyc_verified: str  # Yes, No
-    hour: int  # 0-23
-
 @app.post("/api/predict/enhanced")
 async def predict_fraud_enhanced(transaction: EnhancedPredictionInput):
-    """Enhanced prediction endpoint with simplified input matching frontend"""
+    """
+    Enhanced prediction endpoint - Milestone 3 Complete
+    
+    Features:
+    - ML Model (Random Forest)
+    - Rule-Based Detection (6 business rules)
+    - Risk Scoring
+    - Reason Generation
+    - MongoDB Storage
+    
+    Request: {
+      "customer_id": "C123",
+      "account_age_days": 365,
+      "transaction_amount": 5000,
+      "channel": "Web",
+      "kyc_verified": "Yes",
+      "hour": 14
+    }
+    
+    Response: {
+      "transaction_id": "C123",
+      "prediction": "Fraud" | "Legitimate",
+      "risk_score": 0.80,
+      "confidence": 95.5,
+      "reason": "High transaction amount from new account",
+      "rule_flags": ["HIGH_VALUE_NEW_ACCOUNT"],
+      "risk_level": "High",
+      "risk_factors": [...],
+      "model_version": "1.0.0"
+    }
+    """
     try:
+        # Step 1: Build engineered features
         engineered = _prepare_enhanced_features(transaction)
-        prediction = _run_model_prediction(engineered)
+        
+        # Step 2: Get ML model prediction
+        ml_result = _run_model_prediction(engineered)
+        ml_prediction = ml_result["prediction"]
+        ml_probability = ml_result["fraud_probability"]
+        
+        # Step 3: Apply rule-based detection (combines ML + business rules)
+        final_prediction, rule_flags, reason = _apply_rule_based_detection(
+            transaction.transaction_amount,
+            transaction.account_age_days,
+            transaction.hour,
+            transaction.kyc_verified,
+            transaction.channel,
+            ml_prediction,
+            ml_probability
+        )
+        
+        # Step 4: Determine risk level
+        risk_level = _determine_risk_level(ml_probability)
+        
+        # Step 5: Derive risk factors for frontend display
         risk_factors = _derive_risk_factors(
             transaction.transaction_amount,
             transaction.account_age_days,
@@ -289,25 +462,63 @@ async def predict_fraud_enhanced(transaction: EnhancedPredictionInput):
             transaction.kyc_verified,
             transaction.channel,
         )
-        prediction = _apply_demo_boost(prediction, risk_factors)
-
-        await _store_prediction_record(transaction.customer_id, prediction)
-        return {
+        
+        # Step 6: Build response matching Milestone 3 spec
+        response = {
             "transaction_id": transaction.customer_id,
-            "prediction": "Fraud" if prediction["prediction"] == 1 else "Legitimate",
-            "fraud_probability": prediction["fraud_probability"],
-            "confidence": prediction["confidence"],
-            "risk_level": prediction["risk_level"],
+            "prediction": "Fraud" if final_prediction == 1 else "Legitimate",
+            "risk_score": round(ml_probability, 4),
+            "confidence": round(ml_probability * 100, 2),
+            "reason": reason,
+            "rule_flags": rule_flags,
+            "risk_level": risk_level,
             "risk_factors": risk_factors,
-            "model_version": "1.0.0",
+            "model_version": os.getenv("MODEL_VERSION", "1.0.0"),
             "timestamp": datetime.utcnow().isoformat()
         }
+        
+        # Step 7: Store prediction in MongoDB
+        prediction_payload = {
+            "prediction": "Fraud" if final_prediction == 1 else "Legitimate",
+            "fraud_probability": ml_probability,
+            "risk_level": risk_level,
+            "reason": reason,
+            "rule_flags": rule_flags,
+        }
+        await _store_prediction_record(transaction.customer_id, prediction_payload)
+        
+        return response
+        
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Prediction failed: {str(e)}")
 
+@app.get("/api/result/{transaction_id}")
+async def get_prediction_result(transaction_id: str):
+    """
+    GET /api/result/<transaction_id>
+    Retrieves prediction result by transaction ID
+    
+    Response: Full prediction details from MongoDB
+    """
+    try:
+        result = await db_ops.get_prediction_by_transaction_id(transaction_id)
+        
+        if not result:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No prediction found for transaction_id: {transaction_id}"
+            )
+        
+        return result
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
+
 @app.post("/api/predict/batch")
 async def predict_fraud_batch(file: UploadFile = File(...)):
-    """Batch prediction endpoint that accepts CSV uploads and returns model output for each row"""
+    """Batch prediction endpoint that accepts CSV uploads"""
     try:
         contents = await file.read()
         if not contents:
@@ -339,7 +550,18 @@ async def predict_fraud_batch(file: UploadFile = File(...)):
             }
             transaction = EnhancedPredictionInput(**payload)
             engineered = _prepare_enhanced_features(transaction)
-            prediction = _run_model_prediction(engineered)
+            ml_result = _run_model_prediction(engineered)
+            
+            final_prediction, rule_flags, reason = _apply_rule_based_detection(
+                transaction.transaction_amount,
+                transaction.account_age_days,
+                transaction.hour,
+                transaction.kyc_verified,
+                transaction.channel,
+                ml_result["prediction"],
+                ml_result["fraud_probability"]
+            )
+            
             risk_factors = _derive_risk_factors(
                 transaction.transaction_amount,
                 transaction.account_age_days,
@@ -347,19 +569,20 @@ async def predict_fraud_batch(file: UploadFile = File(...)):
                 transaction.kyc_verified,
                 transaction.channel,
             )
-            await _store_prediction_record(transaction.customer_id, prediction)
 
-            probability_total += prediction["fraud_probability"]
-            if prediction["prediction"] == 1:
+            probability_total += ml_result["fraud_probability"]
+            if final_prediction == 1:
                 fraud_count += 1
 
             results.append({
                 "row": idx + 1,
                 "transaction_id": transaction.customer_id,
-                "prediction": "Fraud" if prediction["prediction"] == 1 else "Legitimate",
-                "fraud_probability": round(prediction["fraud_probability"] * 100, 2),
-                "risk_level": prediction["risk_level"],
-                "confidence": prediction["confidence"],
+                "prediction": "Fraud" if final_prediction == 1 else "Legitimate",
+                "fraud_probability": round(ml_result["fraud_probability"] * 100, 2),
+                "risk_level": ml_result["risk_level"],
+                "confidence": ml_result["confidence"],
+                "reason": reason,
+                "rule_flags": rule_flags,
                 "risk_factors": risk_factors,
             })
 
@@ -377,14 +600,14 @@ async def predict_fraud_batch(file: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Batch prediction failed: {str(e)}")
 
-# ==================== Database API Endpoints ====================
+# ==================== DATABASE ENDPOINTS ====================
 
 @app.get("/api/transactions")
 async def list_transactions(
-    skip: int = Query(0, ge=0, description="Number of records to skip"),
-    limit: int = Query(100, ge=1, le=1000, description="Maximum number of records to return"),
-    is_fraud: Optional[int] = Query(None, ge=0, le=1, description="Filter by fraud status (0 or 1)"),
-    channel: Optional[str] = Query(None, description="Filter by transaction channel")
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
+    is_fraud: Optional[int] = Query(None, ge=0, le=1),
+    channel: Optional[str] = Query(None)
 ):
     """Get list of transactions with pagination and filters"""
     try:
@@ -457,7 +680,6 @@ async def get_model_metrics():
     try:
         metrics = await db_ops.get_latest_model_metrics()
         if not metrics:
-            # Return default metrics if none exist in database
             return {
                 "model_version": "1.0.0",
                 "accuracy": 0.9534,
@@ -492,11 +714,11 @@ async def health_check():
     """Health check endpoint"""
     try:
         db = await get_database()
-        # Try to ping database
         await db.command('ping')
         return {
             "status": "healthy",
             "database": "connected",
+            "model": "loaded",
             "timestamp": datetime.utcnow().isoformat()
         }
     except Exception as e:
