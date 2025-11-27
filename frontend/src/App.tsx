@@ -22,6 +22,8 @@ import TransactionSearch from "./pages/TransactionSearch";
 import Customer360 from "./pages/Customer360";
 import AdminHealth from "./pages/AdminHealth";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
+import ResultsHistory from "@/pages/ResultsHistory";
+import PerformanceDashboard from "@/pages/PerformanceDashboard";
 import { AuthProvider } from "@/context/AuthContext";
 
 const queryClient = new QueryClient();
@@ -52,6 +54,8 @@ const App = () => (
               <Route path="/search" element={<TransactionSearch />} />
               <Route path="/customer360" element={<Customer360 />} />
               <Route path="/admin" element={<AdminHealth />} />
+              <Route path="/results-history" element={<ResultsHistory />} />
+              <Route path="/performance" element={<PerformanceDashboard />} />
             </Route>
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
