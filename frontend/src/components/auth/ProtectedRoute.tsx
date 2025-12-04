@@ -13,6 +13,22 @@ const ProtectedRoute = ({ allowedRoles }: ProtectedRouteProps) => {
     return <Navigate to="/login" replace state={{ from: location }} />;
   }
 
+  // Role-based access control
+  if (user) {
+    // Users can only access /transaction page
+    if (user.role === "User") {
+      if (location.pathname !== "/transaction") {
+        return <Navigate to="/transaction" replace />;
+      }
+    } 
+    // Other roles cannot access /transaction page (it's User-only)
+    else {
+      if (location.pathname === "/transaction") {
+        return <Navigate to="/dashboard" replace />;
+      }
+    }
+  }
+
   if (allowedRoles && user && !allowedRoles.includes(user.role)) {
     return <Navigate to="/dashboard" replace />;
   }

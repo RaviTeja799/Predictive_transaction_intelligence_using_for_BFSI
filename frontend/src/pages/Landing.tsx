@@ -1,5 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
+import { SignedIn, SignedOut, UserButton } from "@clerk/clerk-react";
 import {
   Shield,
   TrendingUp,
@@ -61,8 +63,64 @@ const Landing = () => {
 
   return (
     <div className="min-h-screen bg-background">
+      {/* Fixed Header with Theme Toggle */}
+      <header className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-lg border-b">
+        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
+          <div className="flex items-center gap-2">
+            <Shield className="h-6 w-6 text-primary" />
+            <span className="font-bold text-lg">TransIntelliFlow</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <ThemeToggle />
+            <SignedOut>
+              <Link to="/sign-in">
+                <Button variant="outline" size="sm">Login</Button>
+              </Link>
+              <Link to="/sign-up">
+                <Button size="sm">Get Started</Button>
+              </Link>
+            </SignedOut>
+            <SignedIn>
+              <Link to="/dashboard">
+                <Button variant="outline" size="sm">Dashboard</Button>
+              </Link>
+              <UserButton 
+                afterSignOutUrl="/"
+                appearance={{
+                  elements: {
+                    userButtonAvatarBox: "h-9 w-9 ring-2 ring-primary/20 hover:ring-primary/40 transition-all",
+                    userButtonPopoverCard: "bg-card border border-border shadow-xl rounded-xl",
+                    userButtonPopoverActionButton: "text-foreground hover:bg-muted rounded-lg",
+                    userButtonPopoverActionButtonText: "text-foreground font-medium",
+                    userButtonPopoverFooter: "hidden",
+                  }
+                }}
+                userProfileMode="modal"
+                userProfileProps={{
+                  appearance: {
+                    elements: {
+                      modalContent: "bg-card border-border",
+                      card: "bg-card shadow-none border-0",
+                      navbar: "bg-muted/50 border-r border-border",
+                      navbarButton: "text-foreground hover:bg-muted/80 rounded-lg",
+                      navbarButtonActive: "bg-primary/10 text-primary font-medium",
+                      profileSectionTitle: "text-foreground font-semibold border-b border-border pb-2",
+                      formButtonPrimary: "bg-primary text-primary-foreground hover:bg-primary/90",
+                      formFieldInput: "bg-background border-border text-foreground focus:ring-2 focus:ring-primary/50",
+                      badge: "bg-primary/10 text-primary border-primary/20",
+                      activeDeviceListItem: "bg-muted/30 border border-border rounded-lg",
+                      footer: "hidden",
+                    }
+                  }
+                }}
+              />
+            </SignedIn>
+          </div>
+        </div>
+      </header>
+
       {/* Hero Section */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-primary/5 via-background to-accent/5">
+      <section className="relative overflow-hidden bg-gradient-to-br from-primary/5 via-background to-accent/5 pt-24">
         <div className="container mx-auto px-4 py-20 lg:py-32">
           <div className="flex flex-col items-center text-center space-y-8">
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary text-sm font-medium">
@@ -81,12 +139,22 @@ const Landing = () => {
             </p>
             
             <div className="flex flex-col sm:flex-row gap-4 pt-4">
-              <Button size="lg" asChild className="text-lg h-12 px-8">
-                <Link to="/login">
-                  Access Console
-                  <ArrowRight className="ml-2 h-5 w-5" />
-                </Link>
-              </Button>
+              <SignedOut>
+                <Button size="lg" asChild className="text-lg h-12 px-8">
+                  <Link to="/sign-in">
+                    Access Console
+                    <ArrowRight className="ml-2 h-5 w-5" />
+                  </Link>
+                </Button>
+              </SignedOut>
+              <SignedIn>
+                <Button size="lg" asChild className="text-lg h-12 px-8">
+                  <Link to="/dashboard">
+                    Go to Dashboard
+                    <ArrowRight className="ml-2 h-5 w-5" />
+                  </Link>
+                </Button>
+              </SignedIn>
               <Button size="lg" variant="outline" asChild className="text-lg h-12 px-8">
                 <Link to="/predict">
                   Test Fraud Detection
@@ -220,7 +288,7 @@ const Landing = () => {
                   size="lg"
                   variant="outline"
                   asChild
-                  className="text-lg h-12 px-8 bg-white/10 hover:bg-white/20"
+                  className="text-lg h-12 px-8 bg-primary/10 hover:bg-primary/20"
                 >
                   <Link to="/predict">
                     Try Prediction

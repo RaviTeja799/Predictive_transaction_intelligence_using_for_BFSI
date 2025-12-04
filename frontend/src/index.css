@@ -62,46 +62,55 @@ All colors MUST be HSL.
   }
 
   .dark {
-    --background: 222 47% 11%;
+    --background: 222 47% 8%;
     --foreground: 210 40% 98%;
 
-    --card: 217 33% 17%;
+    --card: 217 33% 12%;
     --card-foreground: 210 40% 98%;
 
-    --popover: 217 33% 17%;
+    --popover: 217 33% 12%;
     --popover-foreground: 210 40% 98%;
 
     --primary: 221 83% 53%;
     --primary-foreground: 0 0% 100%;
     --primary-glow: 221 83% 65%;
 
-    --secondary: 217 33% 22%;
+    --secondary: 217 33% 16%;
     --secondary-foreground: 210 40% 98%;
 
-    --muted: 217 33% 22%;
+    --muted: 217 33% 16%;
     --muted-foreground: 215 20% 65%;
 
     --accent: 217 91% 60%;
     --accent-foreground: 0 0% 100%;
 
-    --success: 142 76% 36%;
+    --success: 142 76% 40%;
     --success-foreground: 0 0% 100%;
 
-    --destructive: 0 63% 31%;
+    --destructive: 0 72% 51%;
     --destructive-foreground: 210 40% 98%;
 
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
 
-    --border: 217 33% 22%;
-    --input: 217 33% 22%;
+    --border: 217 33% 20%;
+    --input: 217 33% 20%;
     --ring: 221 83% 53%;
 
-    --chart-1: 221 83% 53%;
-    --chart-2: 142 76% 36%;
-    --chart-3: 0 84% 60%;
-    --chart-4: 38 92% 50%;
-    --chart-5: 217 91% 60%;
+    --chart-1: 221 83% 60%;
+    --chart-2: 142 76% 45%;
+    --chart-3: 0 72% 55%;
+    --chart-4: 38 92% 55%;
+    --chart-5: 217 91% 65%;
+
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.4);
+    --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.5);
+    --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.6);
+    --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.5);
+
+    --gradient-primary: linear-gradient(135deg, hsl(221 83% 53%), hsl(221 83% 65%));
+    --gradient-success: linear-gradient(135deg, hsl(142 76% 40%), hsl(142 76% 50%));
+    --gradient-danger: linear-gradient(135deg, hsl(0 72% 51%), hsl(0 72% 61%));
   }
 }
 
@@ -112,5 +121,190 @@ All colors MUST be HSL.
 
   body {
     @apply bg-background text-foreground;
+    transition: background-color 0.3s ease, color 0.3s ease;
+  }
+
+  /* Smooth transitions for theme changes */
+  *,
+  *::before,
+  *::after {
+    transition-property: background-color, border-color, color, fill, stroke;
+    transition-duration: 0.3s;
+    transition-timing-function: ease;
+  }
+
+  /* Disable transitions for elements that shouldn't animate */
+  .no-transition,
+  .no-transition *,
+  input,
+  textarea,
+  select {
+    transition: none !important;
+  }
+}
+
+/* Clerk UI Customizations */
+@layer components {
+  /* Clerk Modal Dark Mode Overrides */
+  .dark .cl-modalContent,
+  .dark .cl-card,
+  .dark .cl-userProfile-root,
+  .dark .cl-profilePage,
+  .dark .cl-pageScrollBox {
+    background-color: hsl(var(--card)) !important;
+  }
+
+  .dark .cl-navbar {
+    background-color: hsl(var(--muted)) !important;
+    border-color: hsl(var(--border)) !important;
+  }
+
+  .dark .cl-navbarButton {
+    color: hsl(var(--foreground)) !important;
+  }
+
+  .dark .cl-navbarButton:hover {
+    background-color: hsl(var(--muted)) !important;
+  }
+
+  .dark .cl-navbarButton[data-active="true"] {
+    background-color: hsl(var(--primary) / 0.1) !important;
+    color: hsl(var(--primary)) !important;
+  }
+
+  .dark .cl-headerTitle,
+  .dark .cl-headerSubtitle,
+  .dark .cl-profileSectionTitle,
+  .dark .cl-profileSectionTitleText,
+  .dark .cl-formFieldLabel,
+  .dark .cl-userPreviewMainIdentifier,
+  .dark .cl-accordionTriggerButton {
+    color: hsl(var(--foreground)) !important;
+  }
+
+  .dark .cl-userPreviewSecondaryIdentifier,
+  .dark .cl-formFieldHintText,
+  .dark .cl-breadcrumbsItem {
+    color: hsl(var(--muted-foreground)) !important;
+  }
+
+  .dark .cl-formFieldInput,
+  .dark .cl-phoneInputBox {
+    background-color: hsl(var(--background)) !important;
+    border-color: hsl(var(--border)) !important;
+    color: hsl(var(--foreground)) !important;
+  }
+
+  .dark .cl-formFieldInput:focus {
+    border-color: hsl(var(--primary)) !important;
+    box-shadow: 0 0 0 2px hsl(var(--primary) / 0.2) !important;
+  }
+
+  .dark .cl-formButtonPrimary {
+    background-color: hsl(var(--primary)) !important;
+    color: hsl(var(--primary-foreground)) !important;
+  }
+
+  .dark .cl-formButtonPrimary:hover {
+    background-color: hsl(var(--primary) / 0.9) !important;
+  }
+
+  .dark .cl-badge,
+  .dark .cl-badge-primary {
+    background-color: hsl(var(--primary) / 0.1) !important;
+    color: hsl(var(--primary)) !important;
+    border-color: hsl(var(--primary) / 0.2) !important;
+  }
+
+  .dark .cl-activeDeviceIcon,
+  .dark .cl-activeDevice {
+    background-color: hsl(var(--muted) / 0.5) !important;
+    border-color: hsl(var(--border)) !important;
+  }
+
+  .dark .cl-identityPreview {
+    background-color: hsl(var(--muted) / 0.3) !important;
+    border-color: hsl(var(--border)) !important;
+  }
+
+  .dark .cl-identityPreviewEditButton,
+  .dark .cl-formFieldAction {
+    color: hsl(var(--primary)) !important;
+  }
+
+  .dark .cl-footerAction,
+  .dark .cl-footer {
+    display: none !important;
+  }
+
+  .dark .cl-socialButtonsBlockButton {
+    background-color: hsl(var(--muted) / 0.3) !important;
+    border-color: hsl(var(--border)) !important;
+    color: hsl(var(--foreground)) !important;
+  }
+
+  .dark .cl-socialButtonsBlockButton:hover {
+    background-color: hsl(var(--muted) / 0.5) !important;
+  }
+
+  .dark .cl-otpCodeFieldInput {
+    background-color: hsl(var(--background)) !important;
+    border-color: hsl(var(--border)) !important;
+    color: hsl(var(--foreground)) !important;
+  }
+
+  .dark .cl-dividerLine {
+    background-color: hsl(var(--border)) !important;
+  }
+
+  .dark .cl-dividerText {
+    color: hsl(var(--muted-foreground)) !important;
+  }
+
+  /* Password visibility styling */
+  .dark .cl-formFieldInputShowPasswordButton {
+    color: hsl(var(--muted-foreground)) !important;
+  }
+
+  .dark .cl-formFieldInputShowPasswordButton:hover {
+    color: hsl(var(--foreground)) !important;
+  }
+
+  /* Delete account button */
+  .dark .cl-formButtonReset[data-variant="danger"],
+  .dark .cl-profileSectionPrimaryButton[data-variant="danger"] {
+    color: hsl(var(--destructive)) !important;
+  }
+
+  .dark .cl-profileSectionPrimaryButton[data-variant="danger"]:hover {
+    background-color: hsl(var(--destructive) / 0.1) !important;
+  }
+
+  /* Alert styling */
+  .dark .cl-alert {
+    background-color: hsl(var(--destructive) / 0.1) !important;
+    border-color: hsl(var(--destructive) / 0.2) !important;
+  }
+
+  .dark .cl-alertText {
+    color: hsl(var(--destructive)) !important;
+  }
+
+  /* Scrollbar styling for Clerk modals */
+  .dark .cl-scrollBox::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .dark .cl-scrollBox::-webkit-scrollbar-track {
+    background-color: hsl(var(--muted) / 0.3);
+  }
+
+  .dark .cl-scrollBox::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--muted-foreground) / 0.5);
+    border-radius: 3px;
+  }
+
+  .dark .cl-scrollBox::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(var(--muted-foreground) / 0.7);
   }
 }

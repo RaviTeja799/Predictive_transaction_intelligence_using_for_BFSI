@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState, ReactNode } from "react";
 
-export type UserRole = "Admin" | "Analyst" | "Manager";
+export type UserRole = "Admin" | "Analyst" | "Manager" | "User";
 
 export interface AuthenticatedUser {
   id: string;
@@ -26,9 +26,10 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 const rolePermissions: Record<UserRole, string[]> = {
-  Admin: ["manage-users", "view-analytics", "tune-models", "override-alerts"],
-  Analyst: ["view-analytics", "investigate", "create-cases"],
-  Manager: ["view-analytics", "approve-cases", "assign-cases"],
+  Admin: ["manage-users", "view-analytics", "tune-models", "override-alerts", "view-all-transactions"],
+  Analyst: ["view-analytics", "investigate", "create-cases", "view-all-transactions"],
+  Manager: ["view-analytics", "approve-cases", "assign-cases", "view-all-transactions"],
+  User: ["submit-transaction", "view-own-transactions"],
 };
 
 const STORAGE_KEY = "transintelliflow:user";

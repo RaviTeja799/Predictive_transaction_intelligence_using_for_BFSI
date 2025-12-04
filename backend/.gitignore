@@ -48,3 +48,4 @@ logs/
 # Environment variables
 .env
 .env.local
+frontend/.env

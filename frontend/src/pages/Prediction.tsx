@@ -84,14 +84,16 @@ const PredictionPage = () => {
   };
 
   const getRiskColor = (prediction: string) => {
-    if (prediction === "Fraud") return "text-red-600 bg-red-50 border-red-200";
-    return "text-green-600 bg-green-50 border-green-200";
+    if (prediction === "Fraud") {
+      return "border-red-500 bg-red-500/10 dark:bg-red-950/30";
+    }
+    return "border-green-500 bg-green-500/10 dark:bg-green-950/30";
   };
 
   const getRiskIcon = (prediction: string) => {
     return prediction === "Fraud" 
-      ? <AlertTriangle className="h-8 w-8 text-red-600" />
-      : <CheckCircle className="h-8 w-8 text-green-600" />;
+      ? <AlertTriangle className="h-8 w-8 text-red-600 dark:text-red-400" />
+      : <CheckCircle className="h-8 w-8 text-green-600 dark:text-green-400" />;
   };
 
   return (
@@ -241,15 +243,21 @@ const PredictionPage = () => {
                     <div className="flex items-center gap-3">
                       {getRiskIcon(prediction.prediction)}
                       <div>
-                        <h3 className="text-2xl font-bold">{prediction.prediction}</h3>
-                        <p className="text-sm opacity-80">
-                          {prediction.prediction === "Fraud" ? "High Risk" : "Low Risk"}
+                        <h3 className="text-2xl font-bold">
+                          {prediction.prediction === "Fraud" ? (
+                            <span className="text-red-600 dark:text-red-400">FRAUD DETECTED</span>
+                          ) : (
+                            <span className="text-green-600 dark:text-green-400">Legitimate</span>
+                          )}
+                        </h3>
+                        <p className="text-sm text-muted-foreground">
+                          {prediction.prediction === "Fraud" ? "High Risk Transaction" : "Low Risk Transaction"}
                         </p>
                       </div>
                     </div>
                     <Badge 
-                      variant={prediction.prediction === "Fraud" ? "destructive" : "default"} 
-                      className="text-lg px-4 py-2"
+                      variant={prediction.prediction === "Fraud" ? "destructive" : "outline"} 
+                      className="text-lg px-4 py-2 font-bold"
                     >
                       {(prediction.risk_score * 100).toFixed(1)}%
                     </Badge>
@@ -258,49 +266,50 @@ const PredictionPage = () => {
 
                 {/* Transaction ID and Confidence */}
                 <div className="grid grid-cols-2 gap-4">
-                  <Card>
+                  <Card className="bg-card/50">
                     <CardHeader className="pb-3">
-                      <CardTitle className="text-sm font-medium text-muted-foreground">
+                      <CardTitle className="text-xs uppercase tracking-wider text-muted-foreground">
                         Transaction ID
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <p className="text-lg font-bold font-mono">{prediction.transaction_id}</p>
+                      <p className="text-xl font-bold font-mono text-foreground">{prediction.transaction_id}</p>
                     </CardContent>
                   </Card>
                   
-                  <Card>
+                  <Card className="bg-card/50">
                     <CardHeader className="pb-3">
-                      <CardTitle className="text-sm font-medium text-muted-foreground">
+                      <CardTitle className="text-xs uppercase tracking-wider text-muted-foreground">
                         Confidence Score
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <p className="text-lg font-bold">{prediction.confidence.toFixed(2)}%</p>
+                      <p className="text-xl font-bold text-primary">{prediction.confidence.toFixed(1)}%</p>
                     </CardContent>
                   </Card>
                 </div>
 
                 {/* Decision Reason - NEW from Task 1 */}
                 {prediction.reason && (
-                  <Card>
+                  <Card className="border-l-4 border-l-warning bg-warning/5">
                     <CardHeader className="pb-3">
-                      <CardTitle className="text-sm font-medium text-muted-foreground">
+                      <CardTitle className="text-sm font-medium flex items-center gap-2">
+                        <AlertTriangle className="h-4 w-4 text-warning" />
                         Decision Reason
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <p className="text-sm leading-relaxed">{prediction.reason}</p>
+                      <p className="text-sm leading-relaxed text-foreground">{prediction.reason}</p>
                     </CardContent>
                   </Card>
                 )}
 
                 {/* Business Rules Triggered - NEW from Task 1 */}
                 {prediction.rule_flags && prediction.rule_flags.length > 0 && (
-                  <Card className="border-yellow-200 bg-yellow-50/50">
+                  <Card className="border-l-4 border-l-destructive bg-destructive/5">
                     <CardHeader className="pb-3">
                       <CardTitle className="text-sm font-medium flex items-center gap-2">
-                        <Shield className="h-4 w-4 text-yellow-600" />
+                        <Shield className="h-4 w-4 text-destructive" />
                         Business Rules Triggered ({prediction.rule_flags.length})
                       </CardTitle>
                     </CardHeader>
@@ -310,7 +319,7 @@ const PredictionPage = () => {
                           <Badge 
                             key={idx} 
                             variant="outline" 
-                            className="text-xs bg-white border-yellow-300"
+                            className="text-xs bg-background border-destructive text-destructive font-medium"
                           >
                             {flag.replace(/_/g, ' ')}
                           </Badge>
@@ -321,11 +330,11 @@ const PredictionPage = () => {
                 )}
 
                 {/* LLM-Powered Explanation - Milestone 3 */}
-                <Card className="border-purple-200 bg-purple-50/50">
+                <Card className="border-l-4 border-l-purple-500 bg-purple-500/5 dark:bg-purple-950/20">
                   <CardHeader className="pb-3">
                     <CardTitle className="text-sm font-medium flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <Sparkles className="h-4 w-4 text-purple-600" />
+                        <Sparkles className="h-4 w-4 text-purple-600 dark:text-purple-400" />
                         AI-Powered Explanation
                       </div>
                       <Button 
@@ -351,7 +360,7 @@ const PredictionPage = () => {
                   </CardHeader>
                   <CardContent>
                     {llmExplanation ? (
-                      <p className="text-sm leading-relaxed text-purple-900">{llmExplanation}</p>
+                      <p className="text-sm leading-relaxed text-foreground">{llmExplanation}</p>
                     ) : (
                       <p className="text-sm text-muted-foreground italic">
                         Click "Generate" to get an AI-powered natural language explanation of this prediction using Google Gemini.

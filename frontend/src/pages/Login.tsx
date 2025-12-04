@@ -5,11 +5,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { Shield } from "lucide-react";
 import { useAuth, UserRole } from "@/context/AuthContext";
 import { toast } from "sonner";
 
-const roles: UserRole[] = ["Admin", "Analyst", "Manager"];
+const roles: UserRole[] = ["Admin", "Analyst", "Manager", "User"];
 
 const LoginPage = () => {
   const { login, isAuthenticated } = useAuth();
@@ -18,7 +19,7 @@ const LoginPage = () => {
   const [form, setForm] = useState({
     username: "",
     employeeId: "",
-    role: roles[1],
+    role: roles[3], // Default to User
   });
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -29,9 +30,15 @@ const LoginPage = () => {
     }
     setLoading(true);
     try {
-      await login(form);
+      const user = await login(form);
       toast.success("Welcome to TransIntelliFlow");
-      navigate("/dashboard", { replace: true });
+      
+      // Role-based navigation
+      if (user.role === "User") {
+        navigate("/transaction", { replace: true });
+      } else {
+        navigate("/dashboard", { replace: true });
+      }
     } catch (error) {
       console.error("Login failed", error);
       toast.error("Unable to authenticate. Please try again.");
@@ -46,6 +53,11 @@ const LoginPage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/10 flex items-center justify-center px-4">
+      {/* Theme Toggle - Top Right */}
+      <div className="fixed top-4 right-4 z-50">
+        <ThemeToggle />
+      </div>
+      
       <Card className="w-full max-w-xl shadow-xl">
         <CardHeader className="text-center space-y-3">
           <div className="mx-auto w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center text-primary">
